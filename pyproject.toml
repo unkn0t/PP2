@@ -2,3 +2,4 @@
 exclude = [ ".venv" ]
 venvPath = "."
 venv = ".venv"
+typeCheckingMode = "off"
