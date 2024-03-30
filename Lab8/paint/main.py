@@ -4,8 +4,11 @@ from pygame.locals import *
 from pygame_gui.elements import UIButton, UIPanel 
 from pygame_gui.windows import UIColourPickerDialog
 
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).parent.parent))
 import tools
-from app import Application
+from engine.app import Application
 from canvas import UICanvas
 
 class PaintApp(Application):

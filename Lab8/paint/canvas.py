@@ -10,17 +10,20 @@ class UICanvas(UIImage):
         self.surface = pygame.Surface(relative_rect.size, pygame.SRCALPHA)
         self.surface.fill(background_color)
         self.tool = tools.Circle()
+        # self.eraser = tools.Eraser()
         super().__init__(relative_rect, self.surface, manager=manager, anchors=anchors)   
 
     def process_event(self, event: pygame.event.Event) -> bool:
         if event.type == pygame.MOUSEBUTTONDOWN:
-            pos = pygame.Vector2(event.pos) - pygame.Vector2(self.get_abs_rect().topleft)
-            self.tool.set_in_preview(pos)
-            return True
-        elif event.type == pygame.MOUSEBUTTONUP:
-            if self.hovered:
-                self.tool.set_ready()
+            if event.button == pygame.BUTTON_LEFT:
+                pos = pygame.Vector2(event.pos) - pygame.Vector2(self.get_abs_rect().topleft)
+                self.tool.set_in_preview(pos)
                 return True
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if event.button == pygame.BUTTON_LEFT:
+                if self.hovered:
+                    self.tool.set_ready()
+                    return True
         elif event.type == pygame.MOUSEMOTION:
             if self.hovered:
                 pos = pygame.Vector2(event.pos) - pygame.Vector2(self.get_abs_rect().topleft)

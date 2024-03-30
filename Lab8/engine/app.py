@@ -1,5 +1,6 @@
-from abc import abstractmethod
 import pygame
+
+from .scene import SceneManager
 
 class Application:
     def __init__(self, mode, caption, *, fullscreen=False) -> None:
@@ -12,6 +13,7 @@ class Application:
             self.screen = pygame.display.set_mode(mode)
         pygame.display.set_caption(caption)
         
+        self.scene_manager = SceneManager(self)
         self.clock = pygame.Clock()
         self.is_running = False
         self.delta_time = 0
@@ -27,17 +29,17 @@ class Application:
             self._on_update()
             self._on_redraw()
             pygame.display.update()
-            self.delta_time = self.clock.tick(fps)
+            self.delta_time = self.clock.tick(fps) / 1000.0
     
-    @abstractmethod
-    def _on_event(self):
-        pass
+    def _on_event(self, event: pygame.Event):
+        current_scene = self.scene_manager.get_current()
+        current_scene._on_event(event)
 
-    @abstractmethod
     def _on_update(self):
-        pass
+        current_scene = self.scene_manager.get_current()
+        current_scene._on_update()
 
-    @abstractmethod
     def _on_redraw(self):
-        pass
+        current_scene = self.scene_manager.get_current()
+        current_scene._on_redraw()
 
