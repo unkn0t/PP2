@@ -1,250 +1,287 @@
 import pygame
-import random
-import json
-import os
-import pygame_gui
-
+from pygame.locals import *
 import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent))
-from engine.app import Application
-from engine.scene import Scene
+import os
+import random
+from collections import deque
+ 
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+import engine
 
-DIRNAME = os.path.dirname(__file__)
-SNAKE_ATE_APPLE = pygame.event.custom_type()
+class Cell:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
-class Grid:
-    def __init__(self, size, cell_size):
+class GrassCell(Cell):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.color = (75, 245, 66)
+
+class Board:
+    def __init__(self, x, y, width, height, cell_size):
+        self.pos = (x, y)
+        self.width = width
+        self.height = height
         self.cell_size = cell_size
-        self.size = size
-        self.cells = [[pygame.Color(0,0,0) for _ in range(self.size[0])] for _ in range(self.size[1])]
-        self.used_cells = []
-    
-    def _rect_from_coord(self, x: int, y: int):
-        return pygame.Rect((x * self.cell_size[0], y * self.cell_size[1]), self.cell_size)
-    
-    def get_cell(self, x: int, y: int) -> pygame.Color:
-        return self.cells[y][x]
-    
-    def get_free_cells(self):
-        free_cells = []
-        for y in range(self.size[1]):
-            for x in range(self.size[0]):
-                if not (x, y) in self.used_cells:
-                    free_cells.append((x, y))
-        return free_cells
+        self.cells = []
+        self.dirty_cells = []
 
-    def set_cell(self, x: int, y: int, color: pygame.Color):
-        self.cells[y][x] = color
-        self.used_cells.append((x, y))
+        for x in range(width):
+            self.cells.append([])
+            for y in range(height):
+                self.cells[-1].append(GrassCell(x, y))
+                self.dirty_cells.append(GrassCell(x, y))
 
-    def set_permanent_cell(self, x: int, y: int, color: pygame.Color):
-        self.cells[y][x] = color
+    def update_cells(self, cells):
+        for cell in cells:
+            self.cells[cell.x][cell.y] = cell
+        self.dirty_cells.extend(cells)
 
-    def is_valid_cell(self, x: int, y: int):
-        return x >= 0 and y >= 0 and x < self.size[0] and y < self.size[1]
-        
-    def clear(self):
-        for x, y in self.used_cells:
-            self.cells[y][x] = pygame.Color(0,0,0)
-        self.used_cells.clear() 
-            
-    def draw(self, screen: pygame.Surface):
-        for y in range(self.size[1]):
-            for x in range(self.size[0]): 
-                pygame.draw.rect(screen, self.cells[y][x], self._rect_from_coord(x,y))
+    def redraw(self, screen):
+        for cell in self.dirty_cells:
+            x = self.pos[0] + cell.x * self.cell_size 
+            y = self.pos[1] + cell.y * self.cell_size
+            pygame.draw.rect(screen, cell.color, Rect(x, y, self.cell_size, self.cell_size))
+        self.dirty_cells.clear()
 
-    def debug_draw(self, screen: pygame.Surface):
-        width, height = screen.get_size()
-        for x in range(self.size[0]):
-            pygame.draw.line(screen, 'white', (self.cell_size[0] * x, 0), (self.cell_size[0] * x, height))
-        
-        for y in range(self.size[1]):
-            pygame.draw.line(screen, 'white', (0, self.cell_size[1] * y), (width, self.cell_size[1] * y))
+class SnakeCell(Cell):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.color = (66, 105, 245)
 
-class FoodSpawner:
-    def __init__(self, grid: Grid):
-        self.grid = grid
-        self.food_color = pygame.Color(255, 0, 0)
-        self.spawn()
-    
-    def _spawn_impl(self, x: int, y: int):
-        self.grid.set_permanent_cell(x, y, self.food_color)
+SNAKE_EAT = pygame.event.custom_type()
+SNAKE_COLLIDE = pygame.event.custom_type()
+LEVEL_INCREASED = pygame.event.custom_type()
 
-    def spawn(self):
-        cell = random.choice(self.grid.get_free_cells())
-        self._spawn_impl(cell[0], cell[1])
+SNAKE_LEVEL_ACC = 1.1
 
 class Snake:
-    def __init__(self, head_pos, grid: Grid):
-        self.segments = [head_pos]
-        self.grid = grid
-        self.color = pygame.Color(0, 128, 128)
-        self.accumulated_time = 0.0
-        self.step_time = 0.15 
-        self.alive = True
-    
-    def _update_cells(self):
-        for x, y in self.segments:
-            self.grid.set_cell(x, y, self.color)  
+    def __init__(self, x, y, length, dir, speed):
+        self.speed = speed
+        self.acc_time = 0
+        self.dir = dir
+        self.cells = deque([])
 
-    def _increase_tail(self, dir):
-        new_tail_x = dir[0] + self.segments[0][0]
-        new_tail_y = dir[1] + self.segments[0][1]
-        self.segments.insert(0, (new_tail_x, new_tail_y))
-
-    def move(self, dir, dt: float):
-        if not self.alive:
-            return None
-
-        if self.accumulated_time < self.step_time:
-            self.accumulated_time += dt
-        else:
-            self.accumulated_time -= self.step_time
-            
-            new_head_x = dir[0] + self.segments[-1][0]
-            new_head_y = dir[1] + self.segments[-1][1]
-            self.segments.append((new_head_x, new_head_y))
-            self.segments.pop(0)
-            
-            if not self.grid.is_valid_cell(new_head_x, new_head_y):
-                self.alive = False
-                return None 
-            
-            if self.segments[-1] in self.segments[0:-1]:
-                self.alive = False
-                return None
-
-            if self.grid.get_cell(new_head_x, new_head_y) == pygame.Color(255, 0, 0):
-                pygame.event.post(pygame.Event(SNAKE_ATE_APPLE))
-                self._increase_tail(dir)
+        for _ in range(length):
+            self.cells.append(SnakeCell(x, y))
+            x -= dir[0]
+            y -= dir[1]
         
-        self._update_cells()
+        self.dirty_cells = list(self.cells)
+    
+    def set_horizontal_dir(self, dir_x):
+        if self.dir[0] == 0: 
+            self.dir = (dir_x, 0) 
+    
+    def set_vertical_dir(self, dir_y):
+        if self.dir[1] == 0: 
+            self.dir = (0, dir_y) 
 
-class GameOverScene(Scene):
+    def eat(self, board: Board) -> bool:
+        cell = board.cells[self.cells[0].x][self.cells[0].y]
+        if isinstance(cell, Food):
+            pygame.event.post(pygame.Event(SNAKE_EAT, {'score': cell.score}))
+            return True
+        return False
+
+    def collide(self, head_x, head_y, board: Board) -> bool:
+        for cell in self.cells:
+            if cell.x == head_x and cell.y == head_y:
+                pygame.event.post(pygame.Event(SNAKE_COLLIDE))
+                return True
+                
+        if head_x < 0 or head_y < 0 or head_x >= board.width or head_y >= board.height:
+            pygame.event.post(pygame.Event(SNAKE_COLLIDE))
+            return True
+
+        return False 
+    
+    def move(self, board: Board, dt: float):
+        if self.acc_time < 1.0 / self.speed:
+            self.acc_time += dt
+            return
+
+        self.acc_time = 0.0
+
+        new_head_x = self.cells[0].x + self.dir[0]
+        new_head_y = self.cells[0].y + self.dir[1]
+        if self.collide(new_head_x, new_head_y, board):
+            return
+
+        self.cells.appendleft(SnakeCell(new_head_x, new_head_y))
+        self.dirty_cells.append(self.cells[0])
+        if not self.eat(board):
+            tail = self.cells.pop()
+            self.dirty_cells.append(GrassCell(tail.x, tail.y))
+
+    def redraw(self, board: Board):
+        board.update_cells(self.dirty_cells)
+        self.dirty_cells.clear()
+
+class Food:
+    def __init__(self):
+        self.score = 0 
+
+class AppleCell(Cell, Food):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.color = (217, 2, 27)
+        self.score = 1
+
+class GoldenAppleCell(Cell, Food):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.color = (255,191,0)
+        self.score = 2
+
+DESTROY_FAST_FOOD = pygame.event.custom_type()
+
+class FastFoodCell(Cell, Food):
+    def __init__(self, x, y):
+        super().__init__(x, y)
+        self.color = (84, 10, 209)
+        self.score = 2
+        pygame.time.set_timer(pygame.Event(DESTROY_FAST_FOOD, {'x': self.x, 'y': self.y}), 3000, 1)
+
+class FoodSpawner:
+    def __init__(self):
+        self.dirty_cells = []
+    
+    def spawn(self, board: Board):
+        while True:
+            x = random.randint(0, board.width - 1)
+            y = random.randint(0, board.height - 1)
+            if isinstance(board.cells[x][y], GrassCell):
+                ty = random.randint(1, 20)
+                if ty == 7:
+                    self.dirty_cells.append(GoldenAppleCell(x, y))
+                elif ty == 13 or ty == 17:
+                    self.dirty_cells.append(FastFoodCell(x, y))
+                else:
+                    self.dirty_cells.append(AppleCell(x, y))
+                break
+        
+    def redraw(self, board: Board):
+        board.update_cells(self.dirty_cells)
+        self.dirty_cells.clear()
+
+class Score:
+    def __init__(self, max_score: int):
+        self.score = 0
+        self.level = 0
+        self.level_threshold = 3
+        self.max_score = max_score
+        self.score_text = TextUI('SCORE', 20, 'white', True)
+        self.level_text = TextUI('LEVEL', 20, 'white', True)
+        self.max_score_text = TextUI('MAX SCORE', 20, 'white', True)
+        self.score_number_text = TextUI(str(self.score), 30, 'grey', True)
+        self.level_number_text = TextUI(str(self.level), 30, 'grey', True)
+        self.max_score_number_text = TextUI(str(self.max_score), 30, 'grey', True)
+
+    def add(self, value: int):
+        self.score += value
+        if self.score >= round((self.level + 1) * self.level_threshold):
+            self.level += 1
+            self.level_threshold *= 1.1
+            pygame.event.post(pygame.Event(LEVEL_INCREASED))
+        self.max_score = max(self.max_score, self.score)
+        self.score_number_text = TextUI(str(self.score), 30, 'grey', True)
+        self.level_number_text = TextUI(str(self.level), 30, 'grey', True)
+        self.max_score_number_text = TextUI(str(self.max_score), 30, 'grey', True)
+
+    def draw(self, screen: pygame.Surface):
+        screen.fill((41, 40, 38), Rect(0, 0, screen.get_width(), 80))
+        self.score_text.draw(screen, (60, 20))
+        self.level_text.draw(screen, (720-60, 20))
+        self.max_score_text.draw(screen, (360, 20))
+        self.score_number_text.draw(screen, (60, 50))
+        self.level_number_text.draw(screen, (720-60, 50))
+        self.max_score_number_text.draw(screen, (360, 50))
+        pygame.display.update(0, 0, screen.get_width(), 80)
+
+class GamePlayScene(engine.Scene):
     def _on_load(self):
-        file = open(DIRNAME + '/data.json')
-        data = json.load(file)
-        file.close()
-        self.score = data['score']
-        self.max_score = data['max_score']
-        width, height = self.app.screen.get_size()
-        self.ui_manager = pygame_gui.UIManager((width, height), DIRNAME + '/theme.json')
-        label_width = 200
-        label_height = 50
-        self.score_ui = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(width // 2 - label_width // 2, height // 2 - label_height // 2, label_width, label_height),
-            text=f'Score: {self.score}',
-            manager=self.ui_manager,
-            object_id=pygame_gui.core.ObjectID(object_id='#game_over_label')
-        )
-        self.max_score_ui = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(width // 2 - label_width // 2, height // 2 + label_height // 2, label_width, label_height),
-            text=f'Max score: {self.max_score}',
-            manager=self.ui_manager,
-            object_id=pygame_gui.core.ObjectID(object_id='#game_over_label')
-        )
+        self.board = Board(0, 80, 20, 20, 36)
+        self.snake = Snake(10, 10, 3, (1, 0), speed=5.5)
+        self.food_spawner = FoodSpawner()
+        
+        self.save_filename = os.path.dirname(__file__) + '/snake.save'
+        if os.path.exists(self.save_filename):
+            with open(self.save_filename) as save_file:
+                max_score = int(save_file.read())
+                self.score = Score(max_score)
+        else:
+            self.score = Score(0)
+        
+        self.food_spawner.spawn(self.board)
+    
+    def _on_unload(self):
+        with open(self.save_filename, 'w') as save_file:
+            save_file.write(str(self.score.max_score))
+            
+    def _on_event(self, event: pygame.Event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_w:
+                self.snake.set_vertical_dir(-1)
+            elif event.key == pygame.K_s:
+                self.snake.set_vertical_dir(1)
+            elif event.key == pygame.K_a:
+                self.snake.set_horizontal_dir(-1)
+            elif event.key == pygame.K_d:
+                self.snake.set_horizontal_dir(1)
+        elif event.type == SNAKE_COLLIDE:
+            self.app.scene_manager.switch_to(1)
+        elif event.type == SNAKE_EAT:
+            self.score.add(event.score)
+            self.food_spawner.spawn(self.board)
+        elif event.type == LEVEL_INCREASED:
+            self.snake.speed *= SNAKE_LEVEL_ACC
+        elif event.type == DESTROY_FAST_FOOD:
+            if type(self.board.cells[event.x][event.y]) is FastFoodCell:
+                self.board.update_cells([AppleCell(event.x, event.y)])
+
+    def _on_update(self):
+        self.snake.move(self.board, self.app.delta_time)
+        self.food_spawner.redraw(self.board)
+        self.snake.redraw(self.board)
+        self.board.redraw(self.app.screen)
+        self.score.draw(self.app.screen)
+
+class TextUI:
+    def __init__(self, text: str, size: int, color, bold=False):
+        self.font = pygame.font.SysFont('Iosevka', size, bold)
+        self.text = self.font.render(text, True, color)
+        self.center = pygame.Vector2(self.text.get_rect().center)
+
+    def draw(self, screen: pygame.Surface, center):
+        pos = pygame.Vector2(center) - self.center
+        screen.blit(self.text, pos)
+
+class GameOverScene(engine.Scene):
+    def _on_load(self):
+        self.game_over_text = TextUI('GAME OVER', 50, 'white', True) 
+        self.restart_text = TextUI('Press SPACE to restart', 25, 'grey', True)
+        screen_center = self.app.screen.get_rect().center
+
+        self.app.screen.fill('black')
+        self.game_over_text.draw(self.app.screen, screen_center)
+        self.restart_text.draw(self.app.screen, (screen_center[0], 
+                                                 screen_center[1] + 2 * self.game_over_text.center[1]))
 
     def _on_event(self, event: pygame.Event):
-        if event.type == pygame.QUIT:
-            self.app.is_running = False
-        elif event.type == pygame.KEYDOWN:
+        if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
-                self.manager.switch_to(0)
-        else:
-            self.ui_manager.process_events(event)
-
-    def _on_update(self):
-        self.ui_manager.update(self.app.delta_time)
-
-    def _on_redraw(self):
-        self.app.screen.fill('black')
-        self.ui_manager.draw_ui(self.app.screen)
-
-class PlayScene(Scene):
-    def _on_load(self):
-        width, height = self.app.screen.get_size()
-        self.grid = Grid((width // 30, height // 30), (30, 30))
-        self.snake = Snake((10, 10), self.grid)
-        self.snake_dir = (1, 0)
-        self.food_spawner = FoodSpawner(self.grid)
-        self.level = 0
-        self.score = 0
-        self.ui_manager = pygame_gui.UIManager((width, height), DIRNAME + '/theme.json')
-        self.level_ui = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(10, 10, 100, 30),
-            text=f'Level: {self.score}',
-            manager=self.ui_manager
-        )
-        self.score_ui = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(400, 10, 100, 30),
-            text=f'Score: {self.score}',
-            manager=self.ui_manager,
-        )
-       
-        if os.path.exists(DIRNAME + '/data.json'):
-            file = open(DIRNAME + '/data.json')
-            self.max_score = json.load(file)['max_score']
-        else:
-            self.max_score = 0
-        
-        self.max_score_ui = pygame_gui.elements.UILabel(
-            relative_rect=pygame.Rect(400, 40, 150, 30),
-            text=f'Max score: {self.max_score}',
-            manager=self.ui_manager,
-        )
-
-    def _on_unload(self):
-        self.ui_manager.clear_and_reset()
-        file = open(DIRNAME + '/data.json', 'w')
-        json.dump({'score': self.score, 'max_score': self.max_score}, file)
-        file.close()
-
-    def _on_event(self, event: pygame.event.Event):
-        if event.type == pygame.QUIT:
-            self.app.is_running = False
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_a or event.key == pygame.K_LEFT:
-                if self.snake_dir[0] == 0: self.snake_dir = (-1, 0)
-            elif event.key == pygame.K_d or event.key == pygame.K_RIGHT:
-                if self.snake_dir[0] == 0: self.snake_dir = (1, 0)
-            elif event.key == pygame.K_w or event.key == pygame.K_UP:
-                if self.snake_dir[1] == 0: self.snake_dir = (0, -1)
-            elif event.key == pygame.K_s or event.key == pygame.K_DOWN:
-                if self.snake_dir[1] == 0: self.snake_dir = (0, 1)
-        elif event.type == SNAKE_ATE_APPLE:
-            self.food_spawner.spawn()
-            self.score += 1
-            self.score_ui.set_text(f'Score: {self.score}')
-            if self.score > self.max_score:
-                self.max_score = self.score
-                self.max_score_ui.set_text(f'Max score: {self.max_score}')
-            if (self.score + 1) % 4 == 0:
-                self.level += 1
-                self.snake.step_time *= 0.9
-                self.level_ui.set_text(f'Level: {self.level}')
-        else:
-            self.ui_manager.process_events(event)
-
-    def _on_update(self):
-        self.grid.clear()
-        self.snake.move(self.snake_dir, self.app.delta_time)
-        self.ui_manager.update(self.app.delta_time)
-
-        if not self.snake.alive:
-            self.manager.switch_to(1)
-
-    def _on_redraw(self):
-        self.app.screen.fill('black')
-        self.grid.draw(self.app.screen)
-        self.ui_manager.draw_ui(self.app.screen)
+                self.app.scene_manager.switch_to(0)
 
 def main():
-    app = Application((720, 720), 'Snake')
-    app.scene_manager.add_scene(PlayScene())
+    app = engine.Application((720, 800), 'Snake')
+    app.scene_manager.add_scene(GamePlayScene())
     app.scene_manager.add_scene(GameOverScene())
     app.scene_manager.switch_to(0)
-    app.run()
+    app.run(fps=144)
 
 if __name__ == "__main__":
     main()
