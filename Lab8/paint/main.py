@@ -1,23 +1,23 @@
-import pygame
 import pygame_gui
 from pygame.locals import *
 from pygame_gui.elements import UIButton, UIPanel 
 from pygame_gui.windows import UIColourPickerDialog
 
+import os
 import sys
-from pathlib import Path
-sys.path.append(str(Path(__file__).parent.parent))
+current = os.path.dirname(os.path.realpath(__file__))
+parent = os.path.dirname(current)
+sys.path.append(parent)
+import engine
 import tools
-from engine.app import Application
 from canvas import UICanvas
 
-class PaintApp(Application):
-    def __init__(self):
-        super().__init__((1600, 900), 'Paint')
-        self.ui_manager = pygame_gui.UIManager(self.screen.get_size())
-        control_panel_height = self.screen.get_height() * 0.25
-        canvas_height = self.screen.get_height() - control_panel_height
-        self.control_panel = UIPanel(Rect(0, 0, self.screen.get_width(), control_panel_height), 
+class MainScene(engine.Scene):
+    def _on_load(self):
+        self.ui_manager = pygame_gui.UIManager(self.app.screen.get_size())
+        control_panel_height = self.app.screen.get_height() * 0.25
+        canvas_height = self.app.screen.get_height() - control_panel_height
+        self.control_panel = UIPanel(Rect(0, 0, self.app.screen.get_width(), control_panel_height), 
                                      manager=self.ui_manager)
         
         button_size = (150, 50)
@@ -39,13 +39,11 @@ class PaintApp(Application):
                                            manager=self.ui_manager, 
                                            container=self.control_panel) 
 
-        self.canvas = UICanvas(Rect(0, control_panel_height, self.screen.get_width(), canvas_height), 
+        self.canvas = UICanvas(Rect(0, control_panel_height, self.app.screen.get_width(), canvas_height), 
                                manager=self.ui_manager)
     
     def _on_event(self, event): 
-        if event.type == pygame.QUIT:
-            self.is_running = False
-        elif event.type == pygame_gui.UI_BUTTON_PRESSED:
+        if event.type == pygame_gui.UI_BUTTON_PRESSED:
             if event.ui_element == self.tool_circle_button:
                 self.canvas.tool = tools.Circle()
             elif event.ui_element == self.tool_square_button:
@@ -69,13 +67,13 @@ class PaintApp(Application):
         self.ui_manager.process_events(event)
     
     def _on_update(self):
-        self.ui_manager.update(self.delta_time)
-        
-    def _on_redraw(self):
-        self.ui_manager.draw_ui(self.screen)
+        self.ui_manager.update(self.app.delta_time)
+        self.ui_manager.draw_ui(self.app.screen)
 
 def main():
-    paint_app = PaintApp()
+    paint_app = engine.Application((1600, 900), 'Paint')
+    paint_app.scene_manager.add_scene(MainScene())
+    paint_app.scene_manager.switch_to(0)
     paint_app.run()
 
 if __name__ == '__main__':
