@@ -1,235 +1,165 @@
-from abc import abstractmethod
-
 import pygame
+import pygame.gfxdraw
 import math
-import pygame.gfxdraw as draw 
-from pygame import Vector2, Surface, Color, Rect
-import utils
+import canvas
 
-PREVIEW_WIDTH = 3
+M_ROOT2 = math.sqrt(2)
+M_ROOT3 = math.sqrt(3)
 
-class Tool:
-    def __init__(self) -> None:
-        self.in_preview = False
-        self.ready = False
-        self.color = Color(0,0,0)
-
-    def set_in_preview(self, start_pos) -> None:
-        self.in_preview = True
-        self.ready = False
-        self.on_start(Vector2(start_pos))
-
-    def set_ready(self) -> None:
-        self.in_preview = False
-        self.ready = True
+class ToolBase:
+    def __init__(self, canvas):
+        self.canvas = canvas
+        self.active = False
+        self.start = pygame.Vector2(0)
     
-    def update(self, mouse_pos) -> None:
-        if self.in_preview:
-            self.on_update(Vector2(mouse_pos))
+    def on_mouse_down(self, button, pos):
+        if button == pygame.BUTTON_LEFT:
+            self.start = pygame.Vector2(pos)
+            self.active = True
 
-    def draw(self, screen: Surface) -> bool:
-        if self.in_preview:
-            self.on_preview(screen)
-            return False
-        
-        if self.ready:
-            self.on_draw(screen)
-            self.ready = False
+class LineTool(ToolBase):
+    def on_mouse_up(self, button, pos):
+        if button == pygame.BUTTON_LEFT:
+            self.canvas.exec(canvas.DrawLine(self.start, pos, self.canvas))
+            self.active = False
 
-        return True
-    
-    @abstractmethod 
-    def on_start(self, start_pos: Vector2) -> None:
-        pass
+    def update(self):
+        if not self.active:
+            return
 
-    @abstractmethod 
-    def on_update(self, mouse_pos: Vector2) -> None:
-        pass
-    
-    @abstractmethod 
-    def on_preview(self, screen: Surface) -> None:
-        pass
+        pos = pygame.mouse.get_pos()
+        self.canvas.exec(canvas.DrawLine(self.start, pos, self.canvas), frame_only=True)
 
-    @abstractmethod 
-    def on_draw(self, screen: Surface) -> None:
-        pass
+class CircleTool(ToolBase):
+    def on_mouse_up(self, button, pos):
+        if button == pygame.BUTTON_LEFT:
+            radius = self.start.distance_to(pos)
+            self.canvas.exec(canvas.DrawCircle(self.start, radius, self.canvas))
+            self.active = False
 
-class Circle(Tool):
-    def __init__(self) -> None:
-        super().__init__()
-        self.center = Vector2(0,0)
-        self.end_pos = Vector2(0,0)
-        self.radius = 0
-    
-    def on_start(self, start_pos: Vector2) -> None:
-        self.center = start_pos
-        self.end_pos = start_pos
-        self.radius = 0
+    def update(self):
+        if not self.active:
+            return
 
-    def on_update(self, mouse_pos: Vector2) -> None:
-        self.radius = round(self.center.distance_to(mouse_pos))
-        self.end_pos = mouse_pos
-    
-    def on_preview(self, screen: Surface):
-        pygame.draw.line(screen, Color("red"), self.center, self.end_pos, PREVIEW_WIDTH)
-        pygame.draw.circle(screen, self.color, self.center, self.radius, PREVIEW_WIDTH)
+        pos = pygame.mouse.get_pos()
+        radius = self.start.distance_to(pos)
+        self.canvas.exec(canvas.DrawCircle(self.start, radius, self.canvas), frame_only=True)
 
-    def on_draw(self, screen: Surface):
-        draw.aacircle(screen, int(self.center.x), int(self.center.y), self.radius, self.color)
-        draw.filled_circle(screen, int(self.center.x), int(self.center.y), self.radius, self.color)
+class RectangleTool(ToolBase):
+    def on_mouse_up(self, button, pos):
+        if button == pygame.BUTTON_LEFT:
+            rect = self.calc_rect(pygame.Vector2(pos))
+            self.canvas.exec(canvas.DrawRect(rect, self.canvas))
+            self.active = False
 
-class Square(Tool):
-    def __init__(self) -> None:
-        super().__init__()
-        self.center = Vector2(0,0)
-        self.dist = 0
-    
-    def on_start(self, start_pos: Vector2) -> None:
-        self.center = start_pos
-        self.dist = 0
+    def update(self):
+        if not self.active:
+            return
 
-    def on_update(self, mouse_pos: Vector2) -> None:
-        self.dist = round(self.center.distance_to(mouse_pos))
-   
-    def calc_rect(self) -> Rect:
-        topleft = self.center - Vector2(self.dist) / math.sqrt(2) 
-        size = Vector2(self.dist) * math.sqrt(2)
-        return Rect(topleft, size)
+        pos = pygame.mouse.get_pos()
+        rect = self.calc_rect(pygame.Vector2(pos))
+        self.canvas.exec(canvas.DrawRect(rect, self.canvas), frame_only=True)
 
-    def on_preview(self, screen: Surface):
-        pygame.draw.rect(screen, self.color, self.calc_rect(), PREVIEW_WIDTH)
+    def calc_rect(self, end) -> pygame.Rect:
+        topleft = (min(self.start.x, end.x), min(self.start.y, end.y))
+        size = abs((self.start - end).elementwise())
+        return pygame.Rect(topleft, size)
 
-    def on_draw(self, screen: Surface):
-        draw.box(screen, self.calc_rect(), self.color)
+class SquareTool(ToolBase):
+    def on_mouse_up(self, button, pos):
+        if button == pygame.BUTTON_LEFT:
+            rect = self.calc_rect(pygame.Vector2(pos))
+            self.canvas.exec(canvas.DrawRect(rect, self.canvas))
+            self.active = False
 
-class Rectangle(Tool):
-    def __init__(self) -> None:
-        super().__init__()
-        self.start_vertex = Vector2(0,0)
-        self.end_vertex = Vector2(0,0)
-    
-    def on_start(self, start_pos: Vector2) -> None:
-        self.start_vertex = start_pos
-        self.end_vertex = start_pos
+    def update(self):
+        if not self.active:
+            return
 
-    def on_update(self, mouse_pos: Vector2) -> None:
-        self.end_vertex = mouse_pos
-   
-    def calc_rect(self) -> Rect:
-        topleft = Vector2(
-            min(self.start_vertex.x, self.end_vertex.x),
-            min(self.start_vertex.y, self.end_vertex.y) 
-        )
-        size = Vector2(
-            abs(self.start_vertex.x - self.end_vertex.x), 
-            abs(self.start_vertex.y - self.end_vertex.y)
-        )
-        return Rect(topleft, size)
+        pos = pygame.mouse.get_pos()
+        rect = self.calc_rect(pygame.Vector2(pos))
+        self.canvas.exec(canvas.DrawRect(rect, self.canvas), frame_only=True)
 
-    def on_preview(self, screen: Surface):
-        pygame.draw.rect(screen, self.color, self.calc_rect(), PREVIEW_WIDTH)
+    def calc_rect(self, end) -> pygame.Rect:
+        dist = pygame.Vector2(self.start.distance_to(end))
+        topleft = self.start - dist / M_ROOT2 
+        size = dist * M_ROOT2
+        return pygame.Rect(topleft, size)
 
-    def on_draw(self, screen: Surface):
-        draw.box(screen, self.calc_rect(), self.color)
+class RightTriangleTool(ToolBase):
+    def on_mouse_up(self, button, pos):
+        if button == pygame.BUTTON_LEFT:
+            verticies = self.calc_verticies(pygame.Vector2(pos))
+            self.canvas.exec(canvas.DrawPolygon(verticies, self.canvas))
+            self.active = False
 
-class RightTriangle(Tool):
-    def __init__(self) -> None:
-        super().__init__()
-        self.start_vertex = Vector2(0,0)
-        self.end_vertex = Vector2(0,0)
-    
-    def on_start(self, start_pos: Vector2) -> None:
-        self.start_vertex = start_pos
-        self.end_vertex = start_pos
+    def update(self):
+        if not self.active:
+            return
 
-    def on_update(self, mouse_pos: Vector2) -> None:
-        self.end_vertex = mouse_pos
-   
-    def calc_verticies(self):
-        vertex1 = Vector2(self.start_vertex.x, self.end_vertex.y)
-        vertex2 = Vector2(self.end_vertex.x, self.start_vertex.y)
-        return (self.start_vertex, vertex1, vertex2)
+        pos = pygame.mouse.get_pos()
+        verticies = self.calc_verticies(pygame.Vector2(pos))
+        self.canvas.exec(canvas.DrawPolygon(verticies, self.canvas), frame_only=True)
 
-    def on_preview(self, screen: Surface):
-        pygame.draw.lines(screen, self.color, True, self.calc_verticies(), PREVIEW_WIDTH)
+    def calc_verticies(self, end):
+        vertex1 = pygame.Vector2(self.start.x, end.y)
+        vertex2 = pygame.Vector2(end.x, self.start.y)
+        return (self.start, vertex1, vertex2)
 
-    def on_draw(self, screen: Surface):
-        pygame.draw.aalines(screen, self.color, True, self.calc_verticies())
-        draw.filled_polygon(screen, self.calc_verticies(), self.color)
+class RhombusTool(ToolBase):
+    def on_mouse_up(self, button, pos):
+        if button == pygame.BUTTON_LEFT:
+            verticies = self.calc_verticies(pygame.Vector2(pos))
+            self.canvas.exec(canvas.DrawPolygon(verticies, self.canvas))
+            self.active = False
 
-class Rhombus(Tool):
-    def __init__(self) -> None:
-        super().__init__()
-        self.start_vertex = Vector2(0,0)
-        self.end_vertex = Vector2(0,0)
-    
-    def on_start(self, start_pos: Vector2) -> None:
-        self.start_vertex = start_pos
-        self.end_vertex = start_pos
+    def update(self):
+        if not self.active:
+            return
 
-    def on_update(self, mouse_pos: Vector2) -> None:
-        self.end_vertex = mouse_pos
-   
-    def calc_verticies(self):
-        vertex1 = Vector2(self.end_vertex.x, self.start_vertex.y)
-        vertex2 = Vector2(self.start_vertex.x, self.end_vertex.y)
-        vertex3 = Vector2(2*self.start_vertex.x-self.end_vertex.x, self.start_vertex.y) 
-        vertex4 = Vector2(self.start_vertex.x, 2*self.start_vertex.y-self.end_vertex.y) 
+        pos = pygame.mouse.get_pos()
+        verticies = self.calc_verticies(pygame.Vector2(pos))
+        self.canvas.exec(canvas.DrawPolygon(verticies, self.canvas), frame_only=True)
+
+    def calc_verticies(self, end):
+        vertex1 = pygame.Vector2(end.x, self.start.y)
+        vertex2 = pygame.Vector2(self.start.x, end.y)
+        vertex3 = pygame.Vector2(2 * self.start.x - end.x, self.start.y) 
+        vertex4 = pygame.Vector2(self.start.x, 2 * self.start.y - end.y) 
         return (vertex1, vertex2, vertex3, vertex4)
 
-    def on_preview(self, screen: Surface):
-        pygame.draw.lines(screen, self.color, True, self.calc_verticies(), PREVIEW_WIDTH)
+class EquilateralTriangleTool(ToolBase):
+    def on_mouse_up(self, button, pos):
+        if button == pygame.BUTTON_LEFT:
+            verticies = self.calc_verticies(pygame.Vector2(pos))
+            self.canvas.exec(canvas.DrawPolygon(verticies, self.canvas))
+            self.active = False
 
-    def on_draw(self, screen: Surface):
-        pygame.draw.aalines(screen, self.color, True, self.calc_verticies())
-        draw.filled_polygon(screen, self.calc_verticies(), self.color)
+    def update(self):
+        if not self.active:
+            return
 
-class EquilateralTriangle(Tool):
-    def __init__(self) -> None:
-        super().__init__()
-        self.center = Vector2(0,0)
-        self.dist = 0
-    
-    def on_start(self, start_pos: Vector2) -> None:
-        self.center = start_pos
-        self.dist = 0
+        pos = pygame.mouse.get_pos()
+        verticies = self.calc_verticies(pygame.Vector2(pos))
+        self.canvas.exec(canvas.DrawPolygon(verticies, self.canvas), frame_only=True)
 
-    def on_update(self, mouse_pos: Vector2) -> None:
-        self.dist = self.center.distance_to(mouse_pos)
-   
-    def calc_verticies(self):
-        vertex1 = Vector2(self.center.x, self.center.y - self.dist)
-        vertex2 = Vector2(self.center.x - math.sqrt(3) * self.dist / 2, self.center.y + self.dist / 2)
-        vertex3 = Vector2(self.center.x + math.sqrt(3) * self.dist / 2, self.center.y + self.dist / 2)
-        return (vertex1, vertex2, vertex3)
+    def calc_verticies(self, end):
+        dist = self.start.distance_to(end)
+        vertex1 = self.start - pygame.Vector2(0, dist)
+        vertex2 = self.start + pygame.Vector2(-M_ROOT3, 1) * dist / 2
+        vertex3 = self.start + pygame.Vector2(M_ROOT3, 1) * dist / 2
+        return (round(vertex1), round(vertex2), round(vertex3))
 
-    def on_preview(self, screen: Surface):
-        pygame.draw.lines(screen, self.color, True, self.calc_verticies(), PREVIEW_WIDTH)
+class EraserTool(ToolBase):
+    def on_mouse_up(self, button, pos):
+        if button == pygame.BUTTON_LEFT:
+            self.canvas.exec(canvas.DrawWideLine(self.start, pos, 1, self.canvas))
+            self.active = False
 
-    def on_draw(self, screen: Surface):
-        pygame.draw.aalines(screen, self.color, True, self.calc_verticies())
-        draw.filled_polygon(screen, self.calc_verticies(), self.color)
+    def update(self):
+        if not self.active:
+            return
 
-class Eraser:
-    def __init__(self) -> None:
-        self.start_vertex = Vector2(0,0)
-        self.end_vertex = Vector2(0,0)
-        self.radius = 1
-        self.color = Color(0,0,0)
-        self.ready = True
-
-    def on_start(self, start_pos: Vector2) -> None:
-        self.start_vertex = start_pos
-        self.end_vertex = start_pos
-        self.ready = False
-
-    def on_update(self, mouse_pos: Vector2) -> None:
-        self.start_vertex = self.end_vertex
-        self.end_vertex = mouse_pos
-
-    def on_draw(self, screen: Surface):
-        utils.draw_line(
-            screen, 
-            self.start_vertex, self.end_vertex, self.color,
-            self.radius
-        ) 
+        pos = pygame.mouse.get_pos()
+        self.canvas.exec(canvas.DrawWideLine(self.start, pos, 1, self.canvas))
+        self.start = pygame.Vector2(pos)
