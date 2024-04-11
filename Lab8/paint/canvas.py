@@ -28,7 +28,10 @@ class DrawWideLine:
             coord = self.start.lerp(self.end, t)
             pygame.gfxdraw.aacircle(image, round(coord.x), round(coord.y), self.width, color) 
             pygame.gfxdraw.filled_circle(image, round(coord.x), round(coord.y), self.width, color)
-  
+
+class EraseLine(DrawWideLine):
+    pass
+
 class DrawCircle:
     def __init__(self, center, radius, canvas):
         self.center = canvas.rel_coord(center)
@@ -60,7 +63,8 @@ class Canvas:
         self.image.fill(CANVAS_COLOR)
         self.frame_image = pygame.Surface(self.rect.size, pygame.SRCALPHA)
         self.final_image = pygame.Surface(self.rect.size, pygame.SRCALPHA)
-        self.tool_color = DEFAULT_TOOL_COLOR
+        self.tool_color = pygame.Color(DEFAULT_TOOL_COLOR)
+        self.eraser_color = pygame.Color(CANVAS_COLOR)
         self.undo_stack = collections.deque(maxlen=HISTORY_LENGTH + 1)
         self.redo_stack = collections.deque(maxlen=HISTORY_LENGTH)
         self.undo_stack.append(self.image.copy())
@@ -77,7 +81,10 @@ class Canvas:
 
     def exec(self, command, frame_only = False):
         image = self.frame_image if frame_only else self.image
-        command(image, self.tool_color)
+        if type(command) is EraseLine:
+            command(image, self.eraser_color)
+        else:
+            command(image, self.tool_color)
         if not frame_only:
             self.redo_stack.clear()
             self.undo_stack.append(self.image.copy())    

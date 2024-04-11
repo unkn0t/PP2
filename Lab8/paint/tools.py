@@ -7,8 +7,7 @@ M_ROOT2 = math.sqrt(2)
 M_ROOT3 = math.sqrt(3)
 
 class ToolBase:
-    def __init__(self, canvas):
-        self.canvas = canvas
+    def __init__(self):
         self.active = False
         self.start = pygame.Vector2(0)
     
@@ -19,7 +18,7 @@ class ToolBase:
 
 class LineTool(ToolBase):
     def on_mouse_up(self, button, pos):
-        if button == pygame.BUTTON_LEFT:
+        if self.active and button == pygame.BUTTON_LEFT:
             self.canvas.exec(canvas.DrawLine(self.start, pos, self.canvas))
             self.active = False
 
@@ -32,7 +31,7 @@ class LineTool(ToolBase):
 
 class CircleTool(ToolBase):
     def on_mouse_up(self, button, pos):
-        if button == pygame.BUTTON_LEFT:
+        if self.active and button == pygame.BUTTON_LEFT:
             radius = self.start.distance_to(pos)
             self.canvas.exec(canvas.DrawCircle(self.start, radius, self.canvas))
             self.active = False
@@ -47,7 +46,7 @@ class CircleTool(ToolBase):
 
 class RectangleTool(ToolBase):
     def on_mouse_up(self, button, pos):
-        if button == pygame.BUTTON_LEFT:
+        if self.active and button == pygame.BUTTON_LEFT:
             rect = self.calc_rect(pygame.Vector2(pos))
             self.canvas.exec(canvas.DrawRect(rect, self.canvas))
             self.active = False
@@ -67,7 +66,7 @@ class RectangleTool(ToolBase):
 
 class SquareTool(ToolBase):
     def on_mouse_up(self, button, pos):
-        if button == pygame.BUTTON_LEFT:
+        if self.active and button == pygame.BUTTON_LEFT:
             rect = self.calc_rect(pygame.Vector2(pos))
             self.canvas.exec(canvas.DrawRect(rect, self.canvas))
             self.active = False
@@ -88,7 +87,7 @@ class SquareTool(ToolBase):
 
 class RightTriangleTool(ToolBase):
     def on_mouse_up(self, button, pos):
-        if button == pygame.BUTTON_LEFT:
+        if self.active and button == pygame.BUTTON_LEFT:
             verticies = self.calc_verticies(pygame.Vector2(pos))
             self.canvas.exec(canvas.DrawPolygon(verticies, self.canvas))
             self.active = False
@@ -108,7 +107,7 @@ class RightTriangleTool(ToolBase):
 
 class RhombusTool(ToolBase):
     def on_mouse_up(self, button, pos):
-        if button == pygame.BUTTON_LEFT:
+        if self.active and button == pygame.BUTTON_LEFT:
             verticies = self.calc_verticies(pygame.Vector2(pos))
             self.canvas.exec(canvas.DrawPolygon(verticies, self.canvas))
             self.active = False
@@ -130,7 +129,7 @@ class RhombusTool(ToolBase):
 
 class EquilateralTriangleTool(ToolBase):
     def on_mouse_up(self, button, pos):
-        if button == pygame.BUTTON_LEFT:
+        if self.active and button == pygame.BUTTON_LEFT:
             verticies = self.calc_verticies(pygame.Vector2(pos))
             self.canvas.exec(canvas.DrawPolygon(verticies, self.canvas))
             self.active = False
@@ -148,12 +147,12 @@ class EquilateralTriangleTool(ToolBase):
         vertex1 = self.start - pygame.Vector2(0, dist)
         vertex2 = self.start + pygame.Vector2(-M_ROOT3, 1) * dist / 2
         vertex3 = self.start + pygame.Vector2(M_ROOT3, 1) * dist / 2
-        return (round(vertex1), round(vertex2), round(vertex3))
+        return (vertex1, vertex2, vertex3)
 
 class EraserTool(ToolBase):
     def on_mouse_up(self, button, pos):
-        if button == pygame.BUTTON_LEFT:
-            self.canvas.exec(canvas.DrawWideLine(self.start, pos, 1, self.canvas))
+        if self.active and button == pygame.BUTTON_LEFT:
+            self.canvas.exec(canvas.EraseLine(self.start, pos, 1, self.canvas))
             self.active = False
 
     def update(self):
@@ -161,5 +160,5 @@ class EraserTool(ToolBase):
             return
 
         pos = pygame.mouse.get_pos()
-        self.canvas.exec(canvas.DrawWideLine(self.start, pos, 1, self.canvas))
+        self.canvas.exec(canvas.EraseLine(self.start, pos, 1, self.canvas))
         self.start = pygame.Vector2(pos)

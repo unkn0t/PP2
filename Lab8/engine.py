@@ -4,7 +4,6 @@ from abc import abstractmethod
 class Scene:
     def __init__(self) -> None:
         self.manager = None
-        self.app = None
 
     def set_manager(self, manager) -> None:
         self.manager = manager
@@ -19,7 +18,7 @@ class Scene:
         pass
 
     @abstractmethod
-    def _on_event(self, event: pygame.Event):
+    def _on_event(self, event: pygame.event.Event):
         pass
 
     @abstractmethod
@@ -63,7 +62,7 @@ class Application:
         pygame.display.set_caption(caption)
         
         self.scene_manager = SceneManager(self)
-        self.clock = pygame.Clock()
+        self.clock = pygame.time.Clock()
         self.is_running = False
         self.delta_time = 0
     
@@ -81,7 +80,7 @@ class Application:
             pygame.display.update()
             self.delta_time = self.clock.tick(fps) / 1000.0
     
-    def _on_event(self, event: pygame.Event):
+    def _on_event(self, event: pygame.event.Event):
         current_scene = self.scene_manager.get_current()
         current_scene._on_event(event)
 
