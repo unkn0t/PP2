@@ -83,18 +83,18 @@ class Snake:
     def eat(self, board: Board) -> bool:
         cell = board.cells[self.cells[0].x][self.cells[0].y]
         if isinstance(cell, Food):
-            pygame.event.post(pygame.Event(SNAKE_EAT, {'score': cell.score}))
+            pygame.event.post(pygame.event.Event(SNAKE_EAT, {'score': cell.score}))
             return True
         return False
 
     def collide(self, head_x, head_y, board: Board) -> bool:
         for cell in self.cells:
             if cell.x == head_x and cell.y == head_y:
-                pygame.event.post(pygame.Event(SNAKE_COLLIDE))
+                pygame.event.post(pygame.event.Event(SNAKE_COLLIDE))
                 return True
                 
         if head_x < 0 or head_y < 0 or head_x >= board.width or head_y >= board.height:
-            pygame.event.post(pygame.Event(SNAKE_COLLIDE))
+            pygame.event.post(pygame.event.Event(SNAKE_COLLIDE))
             return True
 
         return False 
@@ -116,6 +116,11 @@ class Snake:
         if not self.eat(board):
             tail = self.cells.pop()
             self.dirty_cells.append(GrassCell(tail.x, tail.y))
+        else:
+            tail = self.cells.pop()
+            tail_second = self.cells.pop()
+            self.dirty_cells.append(GrassCell(tail.x, tail.y))
+            self.dirty_cells.append(GrassCell(tail_second.x, tail_second.y))
 
     def redraw(self, board: Board):
         board.update_cells(self.dirty_cells)
@@ -144,7 +149,7 @@ class FastFoodCell(Cell, Food):
         super().__init__(x, y)
         self.color = (84, 10, 209)
         self.score = 2
-        pygame.time.set_timer(pygame.Event(DESTROY_FAST_FOOD, {'x': self.x, 'y': self.y}), 3000, 1)
+        pygame.time.set_timer(pygame.event.Event(DESTROY_FAST_FOOD, {'x': self.x, 'y': self.y}), 3000, 1)
 
 class FoodSpawner:
     def __init__(self):
@@ -186,7 +191,7 @@ class Score:
         if self.score >= round((self.level + 1) * self.level_threshold):
             self.level += 1
             self.level_threshold *= 1.1
-            pygame.event.post(pygame.Event(LEVEL_INCREASED))
+            pygame.event.post(pygame.event.Event(LEVEL_INCREASED))
         self.max_score = max(self.max_score, self.score)
         self.score_number_text = TextUI(str(self.score), 30, 'grey', True)
         self.level_number_text = TextUI(str(self.level), 30, 'grey', True)
@@ -205,7 +210,7 @@ class Score:
 class GamePlayScene(engine.Scene):
     def _on_load(self):
         self.board = Board(0, 80, 20, 20, 36)
-        self.snake = Snake(10, 10, 3, (1, 0), speed=5.5)
+        self.snake = Snake(10, 10, 8, (1, 0), speed=5.5)
         self.food_spawner = FoodSpawner()
         
         self.save_filename = os.path.dirname(__file__) + '/snake.save'
@@ -222,7 +227,7 @@ class GamePlayScene(engine.Scene):
         with open(self.save_filename, 'w') as save_file:
             save_file.write(str(self.score.max_score))
             
-    def _on_event(self, event: pygame.Event):
+    def _on_event(self, event: pygame.event.Event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_w:
                 self.snake.set_vertical_dir(-1)
@@ -271,7 +276,7 @@ class GameOverScene(engine.Scene):
         self.restart_text.draw(self.app.screen, (screen_center[0], 
                                                  screen_center[1] + 2 * self.game_over_text.center[1]))
 
-    def _on_event(self, event: pygame.Event):
+    def _on_event(self, event: pygame.event.Event):
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
                 self.app.scene_manager.switch_to(0)

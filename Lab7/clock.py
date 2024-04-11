@@ -30,8 +30,8 @@ class Scene:
         time = dt.datetime.now()
         
         screen.blit(self.clock, (0, 0))
-        draw_rotated(screen, self.left_arm, -time.second * 6, (335, 0))
-        draw_rotated(screen, self.right_arm, -time.minute * 6, (-80, -170))
+        draw_rotated(screen, self.left_arm, time.second * 6, (335, 0))
+        draw_rotated(screen, self.right_arm, time.minute * 6, (-80, -170))
 
 class App:
     def __init__(self, width, height, *, fps=60):
