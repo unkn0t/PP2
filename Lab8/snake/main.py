@@ -1,5 +1,4 @@
 import pygame
-from pygame.locals import *
 import sys
 import os
 import random
@@ -44,7 +43,7 @@ class Board:
         for cell in self.dirty_cells:
             x = self.pos[0] + cell.x * self.cell_size 
             y = self.pos[1] + cell.y * self.cell_size
-            pygame.draw.rect(screen, cell.color, Rect(x, y, self.cell_size, self.cell_size))
+            pygame.draw.rect(screen, cell.color, pygame.Rect(x, y, self.cell_size, self.cell_size))
         self.dirty_cells.clear()
 
 class SnakeCell(Cell):
@@ -198,7 +197,7 @@ class Score:
         self.max_score_number_text = TextUI(str(self.max_score), 30, 'grey', True)
 
     def draw(self, screen: pygame.Surface):
-        screen.fill((41, 40, 38), Rect(0, 0, screen.get_width(), 80))
+        screen.fill((41, 40, 38), pygame.Rect(0, 0, screen.get_width(), 80))
         self.score_text.draw(screen, (60, 20))
         self.level_text.draw(screen, (720-60, 20))
         self.max_score_text.draw(screen, (360, 20))

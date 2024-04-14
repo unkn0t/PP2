@@ -4,7 +4,6 @@ from abc import abstractmethod
 class Scene:
     def __init__(self) -> None:
         self.manager = None
-        self.app = None
 
     def set_manager(self, manager) -> None:
         self.manager = manager

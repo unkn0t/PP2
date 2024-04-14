@@ -14,16 +14,6 @@ def draw_gradient_line(surface: Surface,
         draw.aacircle(surface, round(coord.x), round(coord.y), width, color)
         draw.filled_circle(surface, round(coord.x), round(coord.y), width, color)
 
-def draw_line(surface: Surface, 
-        start_coord: Vector2, end_coord: Vector2, color: Color, width = 1):
-    diff = start_coord - end_coord
-    iterations = max(abs(diff.x), abs(diff.y))
-    for i in range(int(iterations)):
-        t = i / iterations
-        coord = start_coord.lerp(end_coord, t)
-        draw.aacircle(surface, round(coord.x), round(coord.y), width, color)
-        draw.filled_circle(surface, round(coord.x), round(coord.y), width, color)
-
 def random_color() -> Color:
     r = random.randint(0, 255)
     g = random.randint(0, 255)
