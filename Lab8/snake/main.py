@@ -2,6 +2,8 @@ import pygame
 import sys
 import os
 import random
+import psycopg2
+import config
 from collections import deque
  
 current = os.path.dirname(os.path.realpath(__file__))
@@ -115,11 +117,6 @@ class Snake:
         if not self.eat(board):
             tail = self.cells.pop()
             self.dirty_cells.append(GrassCell(tail.x, tail.y))
-        else:
-            tail = self.cells.pop()
-            tail_second = self.cells.pop()
-            self.dirty_cells.append(GrassCell(tail.x, tail.y))
-            self.dirty_cells.append(GrassCell(tail_second.x, tail_second.y))
 
     def redraw(self, board: Board):
         board.update_cells(self.dirty_cells)
@@ -209,22 +206,44 @@ class Score:
 class GamePlayScene(engine.Scene):
     def _on_load(self):
         self.board = Board(0, 80, 20, 20, 36)
-        self.snake = Snake(10, 10, 8, (1, 0), speed=5.5)
+        self.snake = Snake(10, 10, 4, (1, 0), speed=6.0)
         self.food_spawner = FoodSpawner()
         
-        self.save_filename = os.path.dirname(__file__) + '/snake.save'
-        if os.path.exists(self.save_filename):
-            with open(self.save_filename) as save_file:
-                max_score = int(save_file.read())
-                self.score = Score(max_score)
-        else:
-            self.score = Score(0)
-        
+        if len(sys.argv) < 2:
+            print("Provide username as argument")
+            exit(1)
+
+        self.username = sys.argv[1]
+        max_score = 0
+        GET_MAXSCORE_SQL = """
+            SELECT max_score FROM users WHERE username = %s
+        """
+        CREATE_NEW_USER_SQL = """
+            INSERT INTO users (username, max_score) VALUES (%s, 0) 
+        """
+
+        cfg = config.load()
+        with psycopg2.connect(**cfg) as db:
+            with db.cursor() as curs:
+                curs.execute(GET_MAXSCORE_SQL, (self.username,))
+                row = curs.fetchone()
+                if row:
+                    max_score = row[0]
+                else:
+                    curs.execute(CREATE_NEW_USER_SQL, (self.username,))
+
+        self.score = Score(max_score)
         self.food_spawner.spawn(self.board)
     
     def _on_unload(self):
-        with open(self.save_filename, 'w') as save_file:
-            save_file.write(str(self.score.max_score))
+        SAVE_MAXSCORE_SQL = """
+            UPDATE users SET max_score = %s WHERE username = %s
+        """
+        
+        cfg = config.load()
+        with psycopg2.connect(**cfg) as db:
+            with db.cursor() as curs:
+                curs.execute(SAVE_MAXSCORE_SQL, (self.score.max_score, self.username))
             
     def _on_event(self, event: pygame.event.Event):
         if event.type == pygame.KEYDOWN:
