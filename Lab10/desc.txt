@@ -1,0 +1,65 @@
+Contact:
+    id: int
+    first_name: str
+    last_name: str
+    phones: List[str]
+
+ContactInfo:
+    first_name: str
+    last_name: str
+    phones: List[str]
+
+Model:
+    add_contact/
+        - contact_info
+        + id
+        ? error (phone owned by another contact) 
+    search_by_name/
+        - first_name
+        - last_name
+        + list[contact]
+    search_by_phone/
+        - phone
+        + list[contact]
+    search_by_id/
+        - id
+        + list[contact]
+    delete_contact/
+        - id
+        ? error (no such contact) 
+    update_contact/
+        - id
+        - contact_info
+        ? error (no such contact)
+        ? error (phone owned by another contact) 
+
+Validation:
+    validate_phone/
+        - phone
+        + phone (only digits)
+        ? validation error
+    validate_name/
+        - name
+        + first_name, last_name
+        ? validation error
+    validate_id/
+        - id
+        ? validation error
+
+View:
+    Add new contact (Button) 
+    Search (Button)
+    Text to search (Form)
+    Export[CSV] (Button)
+    Import[CSV] (Button)
+    List of contacts (Table)
+
+    Search options (Hint)
+        Search by name [word or two words]
+        Search by phone [+number optional(with dashes)]
+        Search by id [@number]
+
+    On click (Row of Table)
+        Update
+        Delete
+    
