@@ -43,6 +43,9 @@ class NotFound(Error):
     def __str__(self) -> str:
         return f'Contact with [ID:{self.id}] not found'
 
+def escape_sql_like(s):
+    return s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+
 # Model:
 #     add_contact/
 #         - contact_info
@@ -106,6 +109,8 @@ class Contacts:
 
         with self.db:
             with self.db.cursor() as curs:
+                first_name = escape_sql_like(first_name)
+                last_name = escape_sql_like(last_name)
                 curs.execute(GET_IDS_SQL, (f'%{first_name}%', f'%{last_name}%'))
                 ids = curs.fetchall()
                 ids = list(map(lambda row: row[0], ids))
